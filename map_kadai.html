@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Map&amp;Geolocation</title>
+<style>
+    html,body{height:100%;}body{padding:0;margin:0;}h1{padding:0;margin:0;font-size:50%;}div{float:left;}h2{padding:0;margin:0;font-size:50%;color:white;}p{margin:0}
+</style>
+<style>
+  html, body{
+      padding:0;
+      margin:0;
+      height:100%;
+  }
+  .directionsContainer{
+      position:relative;
+      width:28%;
+      height:95%;
+      overflow-y:auto;
+      float:left;
+      background:white;
+      padding-left:15px;
+  }
+  #myMap{
+      position:relative;
+      width:calc(100% - 380px);
+      height:95%;
+      float:left;
+      width:70%;
+  }
+  #explain{
+    margin-top: 20px;
+    margin-bottom: 20px;
+  }
+  </style>
+</head>
+<body>
+
+  <header>
+    <p style="text-align: center;font-weight: bold;font-size: 50px;">♨︎　My銭湯マップ ♨︎</p>
+    <p style="text-align: center;font-weight: bold;font-size: 20px;">〜健康害してるのに”銭湯”行くのに日和ってる奴いる？いねえよなぁ！？〜</p>
+    <p id=explain style="text-align: center;font-weight: bold;font-size: 15px;">
+      本サイトではサイト製作者お気に入りの銭湯を見ることができます。<br>
+      さらに、行きたい銭湯までのルート検索や、住所を入力するとお気に入りの銭湯を登録できます<br>
+    </p>
+    <div id="output"></div>
+    <p id="click">住所入力：<input type="text" id="from" value=""> <button id="get">検索</button></p>
+  </header>
+
+
+  <h1>
+  </h1>
+<!-- MapArea -->
+<div class="directionsContainer">
+  <div id="directionsPanel"></div>
+  <div id="directionsItinerary"></div>
+</div>
+<div id="myMap"></div>
+<h2 id="h2">Infobox :  infoboxs</h2>
+
+<!-- /MapArea -->
+  <div id="inputForm" style="display:none;">
+    <table>
+        <tr><td colspan="2"></td></tr>
+        <tr><td>♨︎銭湯名♨︎</td><td><input id="titleTbx" type="text" /></td></tr>
+        <tr><td>♨︎評価♨︎
+        </td><td><input id="descriptionTbx" type="text" /></td></tr>
+        <tr><td colspan="2"><input type="button" value="Save" id="send" onclick="saveData()" style="float:right;"/></td></tr>
+    </table>
+</div>
+
+</script>
+
+
+
+
+<!-- jQuery&GoogleMapsAPI -->
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<!-- /jQuery&GoogleMapsAPI -->
+<script src="https://www.bing.com/api/maps/mapcontrol?callback=GetMap&key=AipOp99cx7pdJdnvgRSRg5xxGykWodJb9r1hKmzGZ2w_Q_MugMelUL6Ea-6ZJeBx" async defer></script>
+<script src="./js/BmapQuery.js"></script>
+<!-- javascript -->
+
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+
+
+<script>
+
+
+//変数作成
+let map, infobox, currentPushpin,directionsManager;
+let infoboxs  = []; //Put infobox in an array
+let locations = []; //Put location in an array
+let searchManager;   
+
+//1．位置情報の取得に成功した時の処理
+function mapsInit(position) {
+    //lat=緯度、lon=経度 を取得
+    const lat = position.coords.latitude;
+    const lon = position.coords.longitude;
+    //$('#view').html(`緯度:${lat} 軽度:${lon}`)
+    //------------------------------------------------------------------------
+    //2. Display Map
+    //------------------------------------------------------------------------
+    map.startMap(lat,lon, "load", 10); //The place is Bellevue.
+
+    //----------------------------------------------------
+    //3. Add Pushpin
+    // map.pin( lat, lon, "color", [drag:true|false], [click:true|false], [hover:true|false], [visible:true|false] );
+    //----------------------------------------------------
+    let pin = map.pin(lat, lon, "#ff0000");
+
+    //------------------------------------------------------------------------
+
+
+};
+
+
+
+//2． 位置情報の取得に失敗した場合の処理
+function mapsError(error) {
+  let e = "";
+  if (error.code == 1) { //1＝位置情報取得が許可されてない（ブラウザの設定）
+    e = "位置情報が許可されてません";
+  }
+  if (error.code == 2) { //2＝現在地を特定できない
+    e = "現在位置を特定できません";
+  }
+  if (error.code == 3) { //3＝位置情報を取得する前にタイムアウトになった場合
+    e = "位置情報を取得する前にタイムアウトになりました";
+  }
+  alert("エラー：" + e);
+};
+
+//3.位置情報取得オプション
+var set ={
+  enableHighAccuracy: true, //より高精度な位置を求める
+  maximumAge: 20000,        //最後の現在地情報取得が20秒以内であればその情報を再利用する設定
+  timeout: 10000            //10秒以内に現在地情報を取得できなければ、処理を終了
+};
+
+
+
+function GetMap(){
+    //------------------------------------------------------------------------
+    //1. Instance
+    //------------------------------------------------------------------------
+    //mapに代入
+
+    //Main:位置情報を取得する処理 //getCurrentPosition :or: watchPosition
+    navigator.geolocation.getCurrentPosition(mapsInit, mapsError, set);
+    
+    map = new Microsoft.Maps.Map('#myMap', {
+      center: new Microsoft.Maps.Location(35.6673808, 139.807),
+        zoom: 15,
+        mapTypeId: Microsoft.Maps.MapTypeId.aerial
+    });
+        
+        //Load the directions module.
+    Microsoft.Maps.loadModule('Microsoft.Maps.Directions', function () {
+        //Create an instance of the directions manager.
+        directionsManager = new Microsoft.Maps.Directions.DirectionsManager(map);
+
+        //Specify where to display the route instructions.
+        directionsManager.setRenderOptions({itineraryContainer: '#directionsItinerary'});
+
+        //Specify the where to display the input panel
+        directionsManager.showInputPanel('directionsPanel');
+
+        Microsoft.Maps.loadModule('Microsoft.Maps.Search', function () {
+            //searchManagerインスタンス化（Geocode,ReverseGeocodeが使用可能になる）
+            searchManager = new Microsoft.Maps.Search.SearchManager(map);
+            //Geocode：住所から検索
+            geocodeQuery(document.getElementById("from").value);
+        });
+    });
+    
+    
+    //Add a click event to the map.
+        Microsoft.Maps.Events.addHandler(map, 'click', mapClicked);
+        //Create an infobox, but hide it. We can reuse it for each pushpin.
+        infobox = new Microsoft.Maps.Infobox(map.getCenter(), { visible: false });
+        infobox.setMap(map);
+
+        //Set:Infobox
+        locations[0] = map.getCenter();
+        const infobox0 = new Microsoft.Maps.Infobox(locations[0], {
+            title: '現在地',
+            description: 'あなたの現在いる場所が表示されます'
+        });
+        infoboxs.push(infobox0);
+
+         //Set:Infobox
+         locations[1] = new Microsoft.Maps.Location(35.67979049682617, 139.7997589111328);
+        const infobox1 = new Microsoft.Maps.Infobox(locations[1], {
+            title: '辰巳湯',
+            description: '評価★★★★（外湯あり、広い、休憩スペースあり、サウナは狭い）'
+        });
+        infoboxs.push(infobox1);
+
+          //Set:Infobox
+          locations[2] = new Microsoft.Maps.Location(35.68473815917969, 139.7969970703125);
+        const infobox2 = new Microsoft.Maps.Infobox(locations[2], {
+            title: '常盤湯',
+            description: '評価★★（玄関は古風でいいがお湯が江戸っ子でもハイレベな温度）'
+        });
+        infoboxs.push(infobox2);
+        
+        //Set:Infobox
+        locations[3] = new Microsoft.Maps.Location(35.702327728271484 ,139.81527709960938);
+        const infobox3 = new Microsoft.Maps.Infobox(locations[3], {
+            title: '黄金湯',
+            description: '評価★★★★★（湯質が温泉、清潔感もあり綺麗、これで480円はおかしい）'
+        });
+        infoboxs.push(infobox3);
+
+        //Add:Place an infobox on the map.
+        for(var i=0;i<infoboxs.length;i++){
+            infoboxs[i].setMap(map); //Add infobox to Map
+        }
+
+        //Change the display of the map.
+        map.setView({
+            bounds: Microsoft.Maps.LocationRect.fromLocations(locations), //fromLocations or fromShapes
+            padding: 100
+        });
+
+    }
+
+    function mapClicked(e) {
+        //Create a pushpin.
+        currentPushpin = new Microsoft.Maps.Pushpin(e.location);
+        //Add a click event to the pushpin.
+        Microsoft.Maps.Events.addHandler(currentPushpin, 'click', pushpinClicked);
+        //Add the pushpin to the map.
+        map.entities.push(currentPushpin);
+        //Open up an input form here the user can enter in details for pushpin.
+        document.getElementById('inputForm').style.display = '';
+    }
+    function saveData() {
+        //Get the data from form and add it to the pushpin
+        currentPushpin.metadata = {
+            title: document.getElementById('titleTbx').value,
+            description: document.getElementById('descriptionTbx').value
+        };
+//Optionally save this data somewhere (like a database or local storage).
+
+        //Clear the fields in the form and then hide the form.
+        document.getElementById('titleTbx').value = '';
+        document.getElementById('descriptionTbx').value = '';
+        document.getElementById('inputForm').style.display = 'none';
+    }
+    function pushpinClicked(e) {
+        if (e.target.metadata) {
+            infobox.setOptions({
+                location: e.target.getLocation(),
+                title: e.target.metadata.title,
+                description: e.target.metadata.description,
+                visible: true
+            });
+        }
+    }
+ /**
+    * 検索ボタン[Click:Event]
+     */
+    document.getElementById("get").onclick = function(){
+        //4.Geocode:住所から検索
+        geocodeQuery(document.getElementById("from").value);
+    };
+
+    /**
+     * 住所から緯度経度を取得
+     * @param query [住所文字列]
+     */
+    function geocodeQuery(query) {
+        if(searchManager) {
+            //住所から緯度経度を検索
+            searchManager.geocode({
+                where: query,       //検索文字列
+                callback: function (r) { //検索結果を"( r )" の変数で取得
+                    //最初の検索取得結果をMAPに表示
+                    if (r && r.results && r.results.length > 0) {
+                        //Pushpinを立てる
+                        const pin = new Microsoft.Maps.Pushpin(r.results[0].location);
+                        map.entities.push(pin);
+                        //map表示位置を再設定
+                        map.setView({ bounds: r.results[0].bestView});
+                        //取得た緯度経度をh1要素にJSON文字列にして表示
+                        console.log(r.results[0].location);
+                        var lati = r.results[0].location.latitude
+                        var long = r.results[0].location.longitude
+                        console.log(lati);
+                        console.log(long);
+
+
+                        //検索履歴表示
+                        localStorage.setItem(LOCALSTORAGE_KEY,SON.stringify(lati));
+                        localStorage.setItem(LOCALSTORAGE_KEY,SON.stringify(long));
+                        //クリックすると緯度検索表示（できていない）
+                        $("#click").on('click',function(){
+                        const h = `<p>${lati}: ${long}</p>`
+                        $("#output").append(h);
+                        });
+          
+}
+                      },
+                      errorCallback: function (e) {
+                          alert("見つかりません");
+                      }
+            });
+        }
+
+    }
+
+
+
+
+
+
+
+</script>
+
+</body>
+</html>
